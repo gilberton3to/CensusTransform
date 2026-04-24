@@ -3,34 +3,40 @@
 //
 
 #include <stdio.h>
-#include <stdlib.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#define MAX_WIDTH 100
+#define MAX_HEIGHT 100
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
+unsigned char imgIn[MAX_WIDTH * MAX_HEIGHT];
+unsigned char imgTemp[MAX_WIDTH * MAX_HEIGHT];
 
 int main() {
-    const char* imgName = "imL_re.png";
-    int width, height, channels;
-
-    unsigned char *imgIn = stbi_load(imgName, &width, &height, &channels, 1);
-    if (!imgIn) {
-        fprintf(stderr, "Erro: nao foi possivel abrir a imagem %s\n", imgName);
-        return 1;
-    }
-
-    unsigned char *imgTemp = (unsigned char *)calloc(width * height, sizeof(unsigned char));
-    if (!imgTemp) {
-        fprintf(stderr, "Erro: falha ao alocar memoria para a saida\n");
-        stbi_image_free(imgIn);
-        return 1;
-    }
-
-    int m = 3;
-    int n = 3;
+    FILE *f_in, *f_out;
+    char magic[3];
+    int width, height, max_val;
+    int pixel;
     int x, y, i, j;
+    int m = 3, n = 3;
+
+    f_in = fopen("input.pgm", "r");
+    if (!f_in) {
+        printf("Erro: Nao abriu input.pgm\n");
+        return 1;
+    }
+
+    fscanf(f_in, "%2s", magic);
+    fscanf(f_in, "%d %d", &width, &height);
+    fscanf(f_in, "%d", &max_val);
+
+    for (x = 0; x < width * height; x++) {
+        fscanf(f_in, "%d", &pixel);
+        imgIn[x] = (unsigned char)pixel;
+    }
+    fclose(f_in);
+
+    for (x = 0; x < width * height; x++) {
+        imgTemp[x] = 0;
+    }
 
     for (x = m / 2; x < height - m / 2; x++) {
         for (y = n / 2; y < width - n / 2; y++) {
@@ -52,16 +58,29 @@ int main() {
                     shiftCount++;
                 }
             }
-
             imgTemp[x * width + y] = (unsigned char)census;
         }
     }
 
-    stbi_write_png("output.png", width, height, 1, imgTemp, width);
-    printf("Sucesso! Imagem salva como 'output.png'.\n");
+    f_out = fopen("output.pgm", "w");
+    if (!f_out) {
+        printf("Erro ao criar output.pgm\n");
+        return 1;
+    }
 
-    stbi_image_free(imgIn);
-    free(imgTemp);
+    fprintf(f_out, "P2\n");
+    fprintf(f_out, "%d %d\n", width, height);
+    fprintf(f_out, "255\n");
+
+    for (x = 0; x < height; x++) {
+        for (y = 0; y < width; y++) {
+            fprintf(f_out, "%d ", imgTemp[x * width + y]);
+        }
+        fprintf(f_out, "\n");
+    }
+    fclose(f_out);
+
+    printf("Sucesso! O algoritmo rodou e gerou o output.pgm\n");
 
     return 0;
 }

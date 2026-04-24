@@ -3,84 +3,173 @@
 //
 
 #include <stdio.h>
+#include <string.h>
 
 #define MAX_WIDTH 89
 #define MAX_HEIGHT 89
+#define MAX_PIXELS (MAX_WIDTH * MAX_HEIGHT)
 
-unsigned char imgIn[MAX_WIDTH * MAX_HEIGHT];
-unsigned char imgTemp[MAX_WIDTH * MAX_HEIGHT];
+#define INPUT_FILE "input.pgm"
+#define OUTPUT_FILE "output-census.pgm"
 
-int main() {
-    FILE *f_in, *f_out;
+unsigned char img_in[MAX_PIXELS];
+unsigned char img_out[MAX_PIXELS];
+
+int read_pgm_p2(const char *filename, unsigned char image[], int *width, int *height) {
+    FILE *file = fopen(filename, "r");
     char magic[3];
-    int width, height, max_val;
     int pixel;
-    int x, y, i, j;
-    int m = 3, n = 3;
+    int total_pixels;
 
-    f_in = fopen("input.pgm", "r");
-    if (!f_in) {
-        printf("Erro: Nao abriu input.pgm\n");
-        return 1;
+    if (file == NULL) {
+        printf("Erro: nao foi possivel abrir o arquivo de entrada: %s\n", filename);
+        return 0;
     }
 
-    fscanf(f_in, "%2s", magic);
-    fscanf(f_in, "%d %d", &width, &height);
-    fscanf(f_in, "%d", &max_val);
-
-    for (x = 0; x < width * height; x++) {
-        fscanf(f_in, "%d", &pixel);
-        imgIn[x] = (unsigned char)pixel;
-    }
-    fclose(f_in);
-
-    for (x = 0; x < width * height; x++) {
-        imgTemp[x] = 0;
+    if (fscanf(file, "%2s", magic) != 1 || strcmp(magic, "P2") != 0) {
+        printf("Erro: formato invalido. Esperado PGM P2.\n");
+        fclose(file);
+        return 0;
     }
 
-    for (x = m / 2; x < height - m / 2; x++) {
-        for (y = n / 2; y < width - n / 2; y++) {
+    if (fscanf(file, "%d %d", width, height) != 2) {
+        printf("Erro: nao foi possivel ler as dimensoes da imagem.\n");
+        fclose(file);
+        return 0;
+    }
+
+    if (*width <= 0 || *height <= 0 || *width > MAX_WIDTH || *height > MAX_HEIGHT) {
+        printf("Erro: tamanho de imagem invalido: %d x %d\n.", *width, *height);
+        fclose(file);
+        return 0;
+    }
+
+    total_pixels = (*width) * (*height);
+
+    for (int k = 0; k < total_pixels; k++) {
+        if (fscanf(file, "%d", &pixel) != 1) {
+            printf("Erro: dados de pixel insuficientes na posicao %d.\n", k);
+            fclose(file);
+            return 0;
+        }
+
+        image[k] = (unsigned char)pixel;
+    }
+
+    fclose(file);
+    return 1;
+}
+
+int write_pgm_p2(const char *filename, const unsigned char image[], int width, int height) {
+    FILE *file = fopen(filename, "w");
+
+    if (file == NULL) {
+        printf("Erro: nao foi possivel criar o arquivo de saida: %s\n", filename);
+        return 0;
+    }
+
+    fprintf(file, "P2\n");
+    fprintf(file, "%d %d\n", width, height);
+    fprintf(file, "255\n");
+
+    for (int row = 0; row < height; row++) {
+        for (int col = 0; col < width; col++) {
+            fprintf(file, "%d ", image[row * width + col]);
+        }
+        fprintf(file, "\n");
+    }
+
+    fclose(file);
+    return 1;
+}
+
+void clear_image(unsigned char image[], int width, int height) {
+    for (int k = 0; k < width * height; k++) {
+        image[k] = 0;
+    }
+}
+
+void census_transform_3x3(
+    const unsigned char input[],
+    unsigned char output[],
+    int width,
+    int height
+) {
+    clear_image(output, width, height);
+
+    for (int row = 1; row < height - 1; row++) {
+        for (int col = 1; col < width - 1; col++) {
             unsigned int census = 0;
-            int shiftCount = 0;
+            unsigned char center = input[row * width + col];
 
-            unsigned char center_pixel = imgIn[x * width + y];
+            for (int i = row - 1; i <= row + 1; i++) {
+                for (int j = col - 1; j <= col + 1; j++) {
+                    if (i == row && j == col) continue;
 
-            for (i = x - m / 2; i <= x + m / 2; i++) {
-                for (j = y - n / 2; j <= y + n / 2; j++) {
-                    if (shiftCount != m * n / 2) {
-                        census <<= 1;
-                        unsigned char current_pixel = imgIn[i * width + j];
+                    census <<= 1;
 
-                        if (current_pixel < center_pixel) {
-                            census += 1;
-                        }
+                    if (input[i * width + j] >= center) {
+                        census |= 1;
                     }
-                    shiftCount++;
                 }
             }
-            imgTemp[x * width + y] = (unsigned char)census;
+
+            output[row * width + col] = (unsigned char)census;
         }
     }
+}
 
-    f_out = fopen("output.pgm", "w");
-    if (!f_out) {
-        printf("Erro ao criar output.pgm\n");
+int test_census_transform_3x3(void) {
+    const int width = 3;
+    const int height = 3;
+
+    unsigned char input[9] = {
+        10, 20, 30,
+        40, 50, 60,
+        70, 80, 90
+    };
+
+    unsigned char output[9];
+
+    census_transform_3x3(input, output, width, height);
+
+    if (output[4] != 15) {
+        printf("Teste falhou: esperado 15, obtido %d\n", output[4]);
+        return 0;
+    }
+
+    printf("Teste passou: census_transform_3x3\n");
+    return 1;
+}
+
+int main(void) {
+    int width;
+    int height;
+
+    printf("Executando teste interno...\n");
+
+    if (!test_census_transform_3x3()) {
+        printf("Erro: falha no teste interno.\n");
         return 1;
     }
 
-    fprintf(f_out, "P2\n");
-    fprintf(f_out, "%d %d\n", width, height);
-    fprintf(f_out, "255\n");
+    printf("Lendo imagem de entrada...\n");
 
-    for (x = 0; x < height; x++) {
-        for (y = 0; y < width; y++) {
-            fprintf(f_out, "%d ", imgTemp[x * width + y]);
-        }
-        fprintf(f_out, "\n");
+    if (!read_pgm_p2(INPUT_FILE, img_in, &width, &height)) {
+        return 1;
     }
-    fclose(f_out);
 
-    printf("Sucesso! O algoritmo rodou e gerou o output.pgm\n");
+    printf("Imagem carregada: %d x %d\n", width, height);
+
+    census_transform_3x3(img_in, img_out, width, height);
+
+    printf("Salvando imagem de saida...\n");
+
+    if (!write_pgm_p2(OUTPUT_FILE, img_out, width, height)) {
+        return 1;
+    }
+
+    printf("Sucesso! Arquivo gerado: %s\n", OUTPUT_FILE);
 
     return 0;
 }

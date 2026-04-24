@@ -4,8 +4,8 @@
 
 #include <stdio.h>
 
-#define MAX_WIDTH 100
-#define MAX_HEIGHT 100
+#define MAX_WIDTH 89
+#define MAX_HEIGHT 89
 
 unsigned char imgIn[MAX_WIDTH * MAX_HEIGHT];
 unsigned char imgTemp[MAX_WIDTH * MAX_HEIGHT];

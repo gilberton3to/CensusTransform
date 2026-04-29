@@ -37,6 +37,8 @@ int read_pgm_p2(const char *filename, unsigned char image[], int *width, int *he
         fclose(file);
         return 0;
     }
+    int max_val;
+    fscanf(file, "%d", &max_val);
 
     if (*width <= 0 || *height <= 0 || *width > MAX_WIDTH || *height > MAX_HEIGHT) {
         printf("Erro: tamanho de imagem invalido: %d x %d\n.", *width, *height);

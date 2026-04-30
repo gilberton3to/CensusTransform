@@ -16,4 +16,4 @@ project(SEMB C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(SEMB main.c)
+add_executable(SEMB census_transform.c)

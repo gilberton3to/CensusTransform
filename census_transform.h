@@ -1,11 +1,11 @@
 /******************************************************************************
-*  @file census_transform.c
+ * @file census_transform.h
  * @brief Aplicação do algoritmo Census Transform 3x3 em imagens PGM (P2).
  *
  * @details
  * Este programa realiza:
  * 1. Leitura de uma imagem PGM P2 (ASCII, escala de cinza);
- * 2. Validação das dimensões da imagem;
+ * 2. Validação das dimensões da imagem e alocação dinâmica de memória;
  * 3. Aplicação do Census Transform 3x3;
  * 4. Escrita da imagem resultante em um novo arquivo PGM.
  *
@@ -62,90 +62,39 @@
 #include <stdio.h>
 
 /*=============================
-  DEFINIÇÕES
-=============================*/
-
-/**
- * @def MAX_WIDTH
- * @brief Largura máxima suportada para a imagem de entrada.
- */
-#define MAX_WIDTH 89
-
-/**
- * @def MAX_HEIGHT
- * @brief Altura máxima suportada para a imagem de entrada.
- */
-#define MAX_HEIGHT 89
-
-/**
- * @def MAX_PIXELS
- * @brief Número máximo de pixels armazenáveis nas imagens de entrada e saída.
- */
-#define MAX_PIXELS (MAX_WIDTH * MAX_HEIGHT)
-
-/*=============================
-  VARIÁVEIS GLOBAIS
-=============================*/
-
-/**
- * @var img_in
- * @brief Vetor que armazena os pixels da imagem de entrada.
- *
- * @details
- * Representa a imagem original em formato linear.
- * Cada posição corresponde a um pixel acessado por:
- *      índice = r * width + c
- */
-extern unsigned char img_in[MAX_PIXELS];
-
-/**
- * @var img_out
- * @brief Vetor que armazena os pixels da imagem resultante.
- *
- * @details
- * Contém os valores gerados pelo Census Transform.
- * As bordas permanecem com valor 0.
- */
-extern unsigned char img_out[MAX_PIXELS];
-
-/*=============================
   PROTÓTIPOS DAS FUNÇÕES
 =============================*/
 
 /**
- * @brief Lê uma imagem no formato PGM P2.
+ * @brief Lê uma imagem no formato PGM P2 e aloca memória dinamicamente.
  *
  * @details
  * Esta função abre um arquivo de imagem PGM P2, valida seu cabeçalho,
- * lê suas dimensões e armazena os pixels em um vetor linear.
+ * lê suas dimensões, aloca a memória exata necessária e armazena os pixels
+ * em um vetor linear.
  *
  * Passo a passo:
  *
  * 1. Abre o arquivo informado em modo de leitura.
  * 2. Lê o identificador do formato, que deve ser "P2".
  * 3. Lê a largura e a altura da imagem.
- * 4. Lê o valor máximo de intensidade dos pixels.
- * 5. Verifica se a imagem possui tamanho válido:
- *    - mínimo de 3x3, necessário para a janela do Census Transform;
- *    - máximo limitado por MAX_WIDTH e MAX_HEIGHT.
+ * 4. Lê e consome o valor máximo de intensidade dos pixels.
+ * 5. Verifica se a imagem possui tamanho válido (mínimo de 3x3).
  * 6. Calcula o total de pixels com width * height.
- * 7. Lê cada pixel do arquivo e armazena no vetor image.
- * 8. Fecha o arquivo.
+ * 7. Aloca memória dinâmica (malloc) baseada no total de pixels.
+ * 8. Lê cada pixel do arquivo e armazena no vetor alocado.
+ * 9. Fecha o arquivo e retorna o ponteiro da imagem.
  *
  * @param filename Nome do arquivo PGM P2 que será lido.
- * @param image Vetor onde os pixels da imagem serão armazenados.
  * @param width Ponteiro onde será salva a largura da imagem.
  * @param height Ponteiro onde será salva a altura da imagem.
  *
- * @return 1 se a leitura for concluída com sucesso.
- * @return 0 se houver erro na abertura, validação ou leitura do arquivo.
+ * @return Um ponteiro para a memória alocada contendo os pixels.
+ * @return NULL se houver erro na abertura, validação ou falta de memória.
  *
- * @note Variáveis globais afetadas:
- * - Nenhuma diretamente.
- * - A função altera apenas o vetor passado em image. Se img_in for passado
- *   como argumento, então img_in será preenchido com os pixels da imagem.
+ * @note Lembre-se de usar a função free() no ponteiro retornado após o uso.
  */
-int read_pgm_p2(const char *filename, unsigned char image[], int *width, int *height);
+unsigned char* read_pgm_p2(const char *filename, int *width, int *height);
 
 /**
  * @brief Escreve uma imagem no formato PGM P2.
@@ -175,11 +124,6 @@ int read_pgm_p2(const char *filename, unsigned char image[], int *width, int *he
  *
  * @return 1 se a escrita for concluída com sucesso.
  * @return 0 se houver erro ao criar ou escrever o arquivo.
- *
- * @note Variáveis globais afetadas:
- * - Nenhuma diretamente.
- * - A função apenas lê o vetor passado em image. Se img_out for passado
- *   como argumento, seu conteúdo será gravado no arquivo de saída.
  */
 int write_pgm_p2(const char *filename, const unsigned char image[], int width, int height);
 
@@ -198,9 +142,6 @@ int write_pgm_p2(const char *filename, const unsigned char image[], int width, i
  * @param height Altura da imagem.
  *
  * @return Esta função não retorna valor.
- *
- * @note Variáveis globais afetadas:
- * - Nenhuma diretamente.
  */
 void clear_image(unsigned char image[], int width, int height);
 
@@ -241,11 +182,6 @@ void clear_image(unsigned char image[], int width, int height);
  * @param height Altura da imagem.
  *
  * @return Esta função não retorna valor.
- *
- * @note Variáveis globais afetadas:
- * - Nenhuma diretamente.
- * - Se img_out for passado como argumento output, img_out será zerado e
- *   preenchido com os valores do Census Transform.
  */
 void census_transform_3x3(
     const unsigned char input[],
@@ -254,4 +190,4 @@ void census_transform_3x3(
     int height
 );
 
-#endif
+#endif // CENSUS_TRANSFORM_H

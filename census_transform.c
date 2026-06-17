@@ -1,82 +1,61 @@
-/******************************************************************************
- * @file census_transform.c
- * @brief Implementação do Census Transform 3x3 em imagens PGM.
- *
- * @author
- * Gilberto Gomes Soares Neto
- * Izadora de Oliveira Albuquerque Montenegro
- *
- * @date
- * 30/04/2026
- ******************************************************************************/
-
 #include "census_transform.h"
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>  // Necessario para malloc e free
+#include <dirent.h>
 
 /*=============================
-  CONFIGURAÇÃO
+  IMPLEMENTACAO DAS FUNCOES
 =============================*/
-
-#define INPUT_FILE "test-1.pgm"
-#define OUTPUT_FILE "output-census.pgm"
-
-/*=============================
-  VARIÁVEIS GLOBAIS
-=============================*/
-
-unsigned char img_in[MAX_PIXELS];
-unsigned char img_out[MAX_PIXELS];
 
 /**
- * @brief Implementação da leitura PGM.
+ * @brief Implementacao da leitura PGM (Alocacao Dinamica sem limites).
  */
-int read_pgm_p2(const char *filename, unsigned char image[], int *width, int *height) {
+unsigned char* read_pgm_p2(const char *filename, int *width, int *height) {
     FILE *file = fopen(filename, "r");
     char magic[3];
     int pixel, total;
 
-    // falha ao abrir arquivo
-    if (!file) return 0;
+    if (!file) return NULL;
 
-    // verifica se é formato P2
     if (fscanf(file, "%2s", magic) != 1 || strcmp(magic, "P2") != 0) {
         fclose(file);
-        return 0;
+        return NULL;
     }
 
-    // lê dimensões
     if (fscanf(file, "%d %d", width, height) != 2) {
         fclose(file);
-        return 0;
+        return NULL;
     }
 
+    // Consome o 255 do cabecalho
     int max_val;
     fscanf(file, "%d", &max_val);
 
-    // valida tamanho mínimo e máximo
-    if (*width < 3 || *height < 3 || *width > MAX_WIDTH || *height > MAX_HEIGHT) {
-        fclose(file);
-        return 0;
-    }
-
     total = (*width) * (*height);
 
-    // lê todos os pixels
+    // ALOCACAO DINAMICA: Pede memoria sob medida para o tamanho da foto
+    unsigned char *image = (unsigned char *)malloc(total * sizeof(unsigned char));
+
+    if (image == NULL) {
+        printf("Erro: Faltou memoria no sistema para alocar a imagem!\n");
+        fclose(file);
+        return NULL;
+    }
+
     for (int i = 0; i < total; i++) {
         if (fscanf(file, "%d", &pixel) != 1) {
+            free(image); // Libera a memoria se der erro na metade
             fclose(file);
-            return 0;
+            return NULL;
         }
         image[i] = (unsigned char)pixel;
     }
 
     fclose(file);
-    return 1;
+    return image; // Retorna o ponteiro com a foto carregada
 }
 
-/**
- * @brief Implementação da escrita PGM.
- */
 int write_pgm_p2(const char *filename, const unsigned char image[], int width, int height) {
     FILE *file = fopen(filename, "w");
     if (!file) return 0;
@@ -94,67 +73,104 @@ int write_pgm_p2(const char *filename, const unsigned char image[], int width, i
     return 1;
 }
 
-/**
- * @brief Zera imagem.
- */
 void clear_image(unsigned char image[], int width, int height) {
     for (int i = 0; i < width * height; i++) {
         image[i] = 0;
     }
 }
-/**
- * @brief Implementação do Census Transform.
- */
-void census_transform_3x3(
-    const unsigned char input[],
-    unsigned char output[],
-    int width,
-    int height
-) {
-    // garante saída zerada (bordas ficam 0)
+
+void census_transform_3x3(const unsigned char input[], unsigned char output[], int width, int height) {
     clear_image(output, width, height);
 
-    // percorre apenas pixels internos
     for (int r = 1; r < height - 1; r++) {
         for (int c = 1; c < width - 1; c++) {
 
             unsigned int census = 0;
             unsigned char center = input[r * width + c];
 
-            // percorre vizinhança 3x3
             for (int i = r - 1; i <= r + 1; i++) {
                 for (int j = c - 1; j <= c + 1; j++) {
-
-                    // ignora o próprio centro
                     if (i == r && j == c) continue;
-
-                    // desloca bits para a esquerda
                     census <<= 1;
-
-                    // adiciona 1 se vizinho >= centro
                     if (input[i * width + j] >= center)
                         census |= 1;
                 }
             }
-
-            // salva resultado (8 bits)
             output[r * width + c] = (unsigned char)census;
         }
     }
 }
 
 /**
- * @brief Função principal.
+ * @brief Funcao principal.
  */
 int main(void) {
-    int w, h;
+    DIR *d;
+    struct dirent *dir;
+    int imagens_processadas = 0;
 
-    if (!read_pgm_p2(INPUT_FILE, img_in, &w, &h)) return 1;
+    d = opendir(".");
 
-    census_transform_3x3(img_in, img_out, w, h);
+    if (d) {
+        while ((dir = readdir(d)) != NULL) {
 
-    if (!write_pgm_p2(OUTPUT_FILE, img_out, w, h)) return 1;
+            char *ext = strrchr(dir->d_name, '.');
 
-    printf("Execução concluida\n");
+            if (ext && strcmp(ext, ".pgm") == 0) {
+
+                if (strncmp(dir->d_name, "census_output", 13) == 0) {
+                    continue;
+                }
+
+                char input_filename[256];
+                char output_filename[256];
+
+                strcpy(input_filename, dir->d_name);
+                sprintf(output_filename, "census_output_c_%s", input_filename);
+
+                int w, h;
+
+                // Recebe o ponteiro dinamico da imagem lida
+                unsigned char *img_in_dinamica = read_pgm_p2(input_filename, &w, &h);
+
+                if (!img_in_dinamica) {
+                    printf("Falha ao ler o arquivo %s. Pulando...\n", input_filename);
+                    continue;
+                }
+
+                // Cria um ponteiro dinamico com o mesmo tamanho exato para a saida
+                unsigned char *img_out_dinamica = (unsigned char *)malloc(w * h * sizeof(unsigned char));
+
+                if (!img_out_dinamica) {
+                    printf("Erro ao alocar memoria para a saida da imagem %s\n", input_filename);
+                    free(img_in_dinamica); // Libera a entrada antes de pular
+                    continue;
+                }
+
+                census_transform_3x3(img_in_dinamica, img_out_dinamica, w, h);
+
+                if (!write_pgm_p2(output_filename, img_out_dinamica, w, h)) {
+                    printf("Erro fatal ao salvar %s\n", output_filename);
+                } else {
+                    printf("[Codigo C] Sucesso (%dx%d pixels): %s -> %s\n", w, h, input_filename, output_filename);
+                    imagens_processadas++;
+                }
+
+                // LIMPEZA OBRIGATORIA: Devolve a memoria pro Mac ao fim de cada foto
+                free(img_in_dinamica);
+                free(img_out_dinamica);
+            }
+        }
+        closedir(d);
+    }
+
+    if (imagens_processadas == 0) {
+        printf("Aviso: Nenhuma imagem .pgm valida foi encontrada.\n");
+    } else {
+        printf("\n=========================================\n");
+        printf("Concluido! Total de %d imagens processadas.\n", imagens_processadas);
+        printf("=========================================\n");
+    }
+
     return 0;
 }

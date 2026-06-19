@@ -7,6 +7,7 @@ import numpy as np
 import serial
 
 PORT = "/dev/tty.usbmodem21203"
+# PORT = "/dev/tty.usbmodem11103"
 BAUD = 38400
 
 PASTA_ALVO = "cmake-build-debug"
@@ -22,7 +23,7 @@ PREFIXO_CPLACA = "census_output_cplaca_"
 
 
 # ============================================================
-# Funções auxiliares para arquivos PGM P2
+# Funções auxiliares para ficheiros PGM P2
 # ============================================================
 
 def ler_pgm_p2(caminho):
@@ -45,6 +46,7 @@ def ler_pgm_p2(caminho):
 
     pixels = np.array([int(x) for x in tokens[4:]], dtype=np.uint8)
     return pixels.reshape((altura, largura))
+
 def salvar_pgm_p2(caminho, imagem):
     altura, largura = imagem.shape
 
@@ -53,6 +55,7 @@ def salvar_pgm_p2(caminho, imagem):
 
         for linha in imagem:
             f.write(" ".join(str(int(pixel)) for pixel in linha) + "\n")
+
 def buscar_imagens_originais():
     arquivos = glob.glob(os.path.join(PASTA_ALVO, "*.pgm"))
 
@@ -88,7 +91,7 @@ def rodar_codigo_c_desktop():
 
 
 # ============================================================
-# Processamento Python
+# Processamento Python (Otimizado com Loop Unrolling)
 # ============================================================
 
 def transformada_census_python(imagem):
@@ -100,19 +103,20 @@ def transformada_census_python(imagem):
             centro = imagem[row, col]
             census = 0
 
-            for i in range(row - 1, row + 2):
-                for j in range(col - 1, col + 2):
-                    if i == row and j == col:
-                        continue
-
-                    census <<= 1
-
-                    if imagem[i, j] >= centro:
-                        census |= 1
+            # Lógica desenrolada espelhando o firmware da placa e C++
+            census |= (imagem[row - 1, col - 1] >= centro) << 7
+            census |= (imagem[row - 1, col]     >= centro) << 6
+            census |= (imagem[row - 1, col + 1] >= centro) << 5
+            census |= (imagem[row, col - 1]     >= centro) << 4
+            census |= (imagem[row, col + 1]     >= centro) << 3
+            census |= (imagem[row + 1, col - 1] >= centro) << 2
+            census |= (imagem[row + 1, col]     >= centro) << 1
+            census |= (imagem[row + 1, col + 1] >= centro)
 
             saida[row, col] = census
 
     return saida
+
 def gerar_resultados_python(imagens):
     print("\n[Python] Gerando referências...")
 
@@ -151,6 +155,7 @@ def criar_tile_com_borda(imagem, x, y):
             tile[r, c] = imagem[src_y, src_x]
 
     return tile
+
 def processar_imagem_na_placa(ser, caminho_original):
     nome_original = os.path.basename(caminho_original)
 
@@ -207,8 +212,6 @@ def processar_imagem_na_placa(ser, caminho_original):
             )
 
     # Normaliza as bordas para ficar igual ao Python e ao C desktop.
-    # A placa usa padding, então ela pode gerar valores nas bordas.
-    # O C desktop e o Python ignoram as bordas e deixam esses pixels como zero.
     reconstruida[0, :] = 0
     reconstruida[-1, :] = 0
     reconstruida[:, 0] = 0
@@ -222,6 +225,7 @@ def processar_imagem_na_placa(ser, caminho_original):
     salvar_pgm_p2(caminho_saida, reconstruida)
 
     return caminho_saida
+
 def gerar_resultados_placa(imagens):
     print("\n[C placa] Iniciando processamento na STM32...")
 
@@ -281,6 +285,7 @@ def comparar_imagens(nome_a, imagem_a, nome_b, imagem_b):
         f"Primeira diferença em x={x}, y={y}: "
         f"{nome_a}={imagem_a[y, x]}, {nome_b}={imagem_b[y, x]}"
     )
+
 def comparar_todos_resultados(imagens):
     print("\n[Comparações] Iniciando validação...")
 
@@ -390,9 +395,10 @@ def comparar_todos_resultados(imagens):
         )
     else:
         print(
-            "Resultado final: existem diferenças, arquivos faltando "
+            "Resultado final: existem diferenças, ficheiros em falta "
             "ou erro na comunicação com a placa."
         )
+
 def injetar_erro_controlado(imagens):
     """
     Altera propositalmente um pixel do primeiro resultado da placa
@@ -410,7 +416,7 @@ def injetar_erro_controlado(imagens):
     )
 
     if not os.path.exists(caminho_cplaca):
-        print("\n[Erro controlado] Arquivo da placa não encontrado.")
+        print("\n[Erro controlado] Ficheiro da placa não encontrado.")
         return
 
     imagem = ler_pgm_p2(caminho_cplaca)

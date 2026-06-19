@@ -6,7 +6,7 @@ using namespace cv;
 
 int main(int argc, char** argv)
 {
-    const char* imgName = "imL_re.png";
+    const char* imgName = "input_04.png";
 
     Mat imgIn = imread(imgName, IMREAD_GRAYSCALE);
     if (imgIn.empty())
@@ -15,47 +15,30 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    imshow("input", imgIn);
+    imshow("input_04", imgIn);
 
     Size imgSize = imgIn.size();
     Mat imgTemp = Mat::zeros(imgSize, CV_8U);
 
-    // If (CurrentPixelIntensity < CentrePixelIntensity) bit = 1
-    // else bit = 0
+    int x, y;
 
-    unsigned int census = 0;
-    unsigned int bit = 0;
-    int m = 3;
-    int n = 3; // window size
-    int i, j, x, y;
-    int shiftCount = 0;
-
-    for (x = m / 2; x < imgSize.height - m / 2; x++)
+    // Loop unrolling: varredura da imagem ignorando as bordas
+    for (x = 1; x < imgSize.height - 1; x++)
     {
-        for (y = n / 2; y < imgSize.width - n / 2; y++)
+        for (y = 1; y < imgSize.width - 1; y++)
         {
-            census = 0;
-            shiftCount = 0;
+            uchar center = imgIn.at<uchar>(x, y);
+            unsigned int census = 0;
 
-            for (i = x - m / 2; i <= x + m / 2; i++)
-            {
-                for (j = y - n / 2; j <= y + n / 2; j++)
-                {
-                    if (shiftCount != m * n / 2) // skip the center pixel
-                    {
-                        census <<= 1;
-
-                        if (imgIn.at<uchar>(i, j) < imgIn.at<uchar>(x, y))
-                            bit = 1;
-                        else
-                            bit = 0;
-
-                        census = census + bit;
-                    }
-
-                    shiftCount++;
-                }
-            }
+            // Lógica desenrolada idêntica à do STM32 (ordem de bits exata)
+            census |= (imgIn.at<uchar>(x - 1, y - 1) >= center) << 7;
+            census |= (imgIn.at<uchar>(x - 1, y)     >= center) << 6;
+            census |= (imgIn.at<uchar>(x - 1, y + 1) >= center) << 5;
+            census |= (imgIn.at<uchar>(x, y - 1)     >= center) << 4;
+            census |= (imgIn.at<uchar>(x, y + 1)     >= center) << 3;
+            census |= (imgIn.at<uchar>(x + 1, y - 1) >= center) << 2;
+            census |= (imgIn.at<uchar>(x + 1, y)     >= center) << 1;
+            census |= (imgIn.at<uchar>(x + 1, y + 1) >= center);
 
             imgTemp.at<uchar>(x, y) = static_cast<uchar>(census);
         }
